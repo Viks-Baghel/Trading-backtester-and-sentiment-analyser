@@ -1,63 +1,58 @@
+import unittest
 import pandas as pd
 
 from backend.app.services.sentiment_service import (
     analyze_headlines,
     aggregate_sentiment,
 )
-from backend.app.services.signals import (
-    generate_sentiment_signals,
-)
+from backend.app.services.signals import generate_sentiment_signals
 
 
-headlines = [
-    "Reliance Industries reports strong quarterly earnings and robust revenue growth.",
-    "Indian stock markets crash amid severe global economic uncertainty.",
-    "TCS announces a new board meeting next week.",
-]
+class TestSentimentStrategy(unittest.TestCase):
 
-
-print("\nFINBERT SENTIMENT ANALYSIS")
-print("==========================")
-
-results = analyze_headlines(headlines)
-
-for result in results:
-    print("\nHeadline:")
-    print(result["text"])
-
-    print("Label:", result["label"])
-    print("Confidence:", round(result["confidence"], 4))
-    print("Sentiment Score:", round(result["sentiment_score"], 4))
-
-
-average_sentiment = aggregate_sentiment(results)
-
-print("\nAverage Sentiment:")
-print(round(average_sentiment, 4))
-
-
-# Create a small example dataset
-data = pd.DataFrame({
-    "Close": [2500, 2520, 2480],
-    "Sentiment_Score": [
-        results[0]["sentiment_score"],
-        results[1]["sentiment_score"],
-        results[2]["sentiment_score"],
-    ],
-})
-
-
-data = generate_sentiment_signals(data)
-
-print("\nSENTIMENT SIGNALS")
-print("=================")
-
-print(
-    data[
-        [
-            "Close",
-            "Sentiment_Score",
-            "Signal",
+    def test_finbert_sentiment_analysis(self):
+        headlines = [
+            "Reliance Industries reports strong quarterly earnings.",
+            "Indian stock markets crash amid severe economic uncertainty.",
+            "TCS announces a new board meeting next week.",
         ]
-    ]
-)
+
+        results = analyze_headlines(headlines)
+
+        self.assertEqual(len(results), 3)
+
+        for result in results:
+            self.assertIn("label", result)
+            self.assertIn("confidence", result)
+            self.assertIn("sentiment_score", result)
+
+    def test_aggregate_sentiment(self):
+        results = [
+            {"sentiment_score": 0.5},
+            {"sentiment_score": -0.5},
+            {"sentiment_score": 0.0},
+        ]
+
+        average = aggregate_sentiment(results)
+
+        self.assertEqual(average, 0.0)
+
+    def test_sentiment_signals(self):
+        data = pd.DataFrame({
+            "Close": [2500, 2520, 2480],
+            "sentiment_score": [
+                0.5,
+                -0.5,
+                0.0,
+            ],
+        })
+
+        result = generate_sentiment_signals(data)
+
+        self.assertEqual(result.loc[0, "Signal"], "BUY")
+        self.assertEqual(result.loc[1, "Signal"], "SELL")
+        self.assertEqual(result.loc[2, "Signal"], "HOLD")
+
+
+if __name__ == "__main__":
+    unittest.main()

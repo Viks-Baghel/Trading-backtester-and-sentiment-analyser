@@ -184,28 +184,13 @@ def generate_ai_hybrid_signals(
     # 1. TECHNICAL COMPONENT
     # =========================================================
 
-    # ---------------------------------------------------------
-    # SMA direction
-    # ---------------------------------------------------------
-
     sma_score = (
         df["SMA_20"] > df["SMA_50"]
     ).astype(float)
 
-    # ---------------------------------------------------------
-    # MACD direction
-    # ---------------------------------------------------------
-
     macd_score = (
         df["MACD"] > df["MACD_SIGNAL"]
     ).astype(float)
-
-    # ---------------------------------------------------------
-    # RSI component
-    #
-    # RSI >= 50 -> bullish contribution
-    # RSI < 50  -> bearish contribution
-    # ---------------------------------------------------------
 
     df["rsi_score"] = 0.5
 
@@ -219,24 +204,14 @@ def generate_ai_hybrid_signals(
         "rsi_score"
     ] = 0.0
 
-    # ---------------------------------------------------------
-    # Combined technical score
-    #
-    # SMA  = 40%
-    # MACD = 40%
-    # RSI  = 20%
-    # ---------------------------------------------------------
-
+    # Technical score
     df["technical_score"] = (
         0.40 * sma_score
         + 0.40 * macd_score
         + 0.20 * df["rsi_score"]
     )
 
-    # ---------------------------------------------------------
     # Technical direction
-    # ---------------------------------------------------------
-
     df["technical_direction"] = "NEUTRAL"
 
     df.loc[
@@ -250,27 +225,18 @@ def generate_ai_hybrid_signals(
     ] = "BEARISH"
 
     # =========================================================
-    # 2. FINBERT SENTIMENT COMPONENT
+    # 2. FINBERT SENTIMENT
     # =========================================================
 
     sentiment = (
         df[sentiment_column]
         .fillna(0.0)
-        .clip(
-            -1.0,
-            1.0,
-        )
+        .clip(-1.0, 1.0)
     )
-
-    # Convert [-1, 1] -> [0, 1]
 
     df["sentiment_normalized"] = (
         sentiment + 1.0
     ) / 2.0
-
-    # ---------------------------------------------------------
-    # Sentiment direction
-    # ---------------------------------------------------------
 
     df["sentiment_direction"] = "NO_NEWS"
 
@@ -285,7 +251,7 @@ def generate_ai_hybrid_signals(
     ] = "BEARISH"
 
     # =========================================================
-    # 3. ARIMA FORECAST COMPONENT
+    # 3. ARIMA FORECAST
     # =========================================================
 
     current_price = pd.to_numeric(
@@ -298,23 +264,11 @@ def generate_ai_hybrid_signals(
         errors="coerce",
     )
 
-    # ---------------------------------------------------------
-    # Expected return
-    # ---------------------------------------------------------
-
     expected_return = (
         forecast_price - current_price
     ) / current_price
 
     df["forecast_expected_return"] = expected_return
-
-    # ---------------------------------------------------------
-    # Forecast direction
-    #
-    # >= +0.30% -> bullish
-    # <= -0.30% -> bearish
-    # otherwise  -> neutral
-    # ---------------------------------------------------------
 
     df["forecast_direction"] = "NEUTRAL"
 
@@ -328,10 +282,6 @@ def generate_ai_hybrid_signals(
         "forecast_direction"
     ] = "BEARISH"
 
-    # ---------------------------------------------------------
-    # Convert forecast return into 0-1 score
-    # ---------------------------------------------------------
-
     df["forecast_score"] = (
         0.5 + expected_return / 0.04
     ).clip(
@@ -341,10 +291,6 @@ def generate_ai_hybrid_signals(
 
     # =========================================================
     # 4. AI HYBRID SCORE
-    #
-    # Technical = 45%
-    # Sentiment = 30%
-    # Forecast  = 25%
     # =========================================================
 
     df["ai_hybrid_score"] = (
@@ -354,7 +300,17 @@ def generate_ai_hybrid_signals(
     )
 
     # =========================================================
-    # 5. DIRECTIONAL FLAGS
+    # 5. DIRECTIONAL VOTING
+    #
+    # Three components:
+    #
+    # Technical
+    # Sentiment
+    # Forecast
+    #
+    # BUY  = 2 or more bullish votes
+    # SELL = 2 or more bearish votes
+    # HOLD = otherwise
     # =========================================================
 
     technical_bullish = (
@@ -381,50 +337,51 @@ def generate_ai_hybrid_signals(
         df["sentiment_direction"] == "BEARISH"
     )
 
-    no_news = (
-        df["sentiment_direction"] == "NO_NEWS"
+    # ---------------------------------------------------------
+    # Bullish votes
+    # ---------------------------------------------------------
+
+    bullish_votes = (
+        technical_bullish.astype(int)
+        + forecast_bullish.astype(int)
+        + sentiment_bullish.astype(int)
     )
 
+    # ---------------------------------------------------------
+    # Bearish votes
+    # ---------------------------------------------------------
+
+    bearish_votes = (
+        technical_bearish.astype(int)
+        + forecast_bearish.astype(int)
+        + sentiment_bearish.astype(int)
+    )
+
+    df["bullish_votes"] = bullish_votes
+    df["bearish_votes"] = bearish_votes
+
     # =========================================================
-    # 6. BUY CONDITION
+    # 6. BUY
     #
-    # Technical must be bullish
-    # Forecast must be bullish
-    # Sentiment must be bullish OR no news
-    # AI score must be >= 0.60
+    # At least 2 bullish components
+    # and AI score >= 0.60
     # =========================================================
 
     buy_condition = (
-        technical_bullish
-        & forecast_bullish
-        & (
-            sentiment_bullish
-            | no_news
-        )
-        & (
-            df["ai_hybrid_score"] >= 0.60
-        )
+        (bullish_votes >= 2)
+        & (df["ai_hybrid_score"] >= 0.60)
     )
 
     # =========================================================
-    # 7. SELL CONDITION
+    # 7. SELL
     #
-    # Technical must be bearish
-    # Forecast must be bearish
-    # Sentiment must be bearish OR no news
-    # AI score must be <= 0.40
+    # At least 2 bearish components
+    # and AI score <= 0.40
     # =========================================================
 
     sell_condition = (
-        technical_bearish
-        & forecast_bearish
-        & (
-            sentiment_bearish
-            | no_news
-        )
-        & (
-            df["ai_hybrid_score"] <= 0.40
-        )
+        (bearish_votes >= 2)
+        & (df["ai_hybrid_score"] <= 0.40)
     )
 
     # =========================================================
@@ -450,15 +407,15 @@ def generate_ai_hybrid_signals(
     df.loc[
         buy_condition,
         "signal_reason"
-    ] = "Technical + ARIMA bullish"
+    ] = "2+ bullish components"
 
     df.loc[
         sell_condition,
         "signal_reason"
-    ] = "Technical + ARIMA bearish"
+    ] = "2+ bearish components"
 
     # =========================================================
-    # 10. ADD COMPONENT SUMMARY
+    # 10. COMPONENT EXPLANATION
     # =========================================================
 
     df["signal_explanation"] = (
@@ -468,8 +425,11 @@ def generate_ai_hybrid_signals(
         + df["sentiment_direction"].astype(str)
         + " | Forecast: "
         + df["forecast_direction"].astype(str)
+        + " | Bullish votes: "
+        + df["bullish_votes"].astype(str)
+        + " | Bearish votes: "
+        + df["bearish_votes"].astype(str)
     )
 
     return df
-
 
