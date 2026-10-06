@@ -20,7 +20,7 @@ from backend.app.services.metrics import calculate_metrics
 
 SYMBOL = "RELIANCE.NS"
 
-START_DATE = "2026-07-01"
+START_DATE = "2026-01-01"
 END_DATE = "2026-09-05"
 
 INITIAL_CAPITAL = 100000.0
@@ -50,20 +50,20 @@ print("Price rows:", len(price_data))
 # 2. ADD TECHNICAL INDICATORS
 # ---------------------------------------------------------
 
-print("\n2. Adding technical indicators...")
+# print("\n2. Adding technical indicators...")
 
-price_data = add_indicators(price_data)
+# price_data = add_indicators(price_data)
 
-print(
-    "Indicators:",
-    [
-        "SMA_20",
-        "SMA_50",
-        "EMA_20",
-        "RSI",
-        "MACD",
-    ],
-)
+# print(
+#     "Indicators:",
+#     [
+#         "SMA_20",
+#         "SMA_50",
+#         "EMA_20",
+#         "RSI",
+#         "MACD",
+#     ],
+# )
 
 
 # ---------------------------------------------------------
@@ -137,12 +137,28 @@ combined = align_price_and_sentiment(
     daily_sentiment,
 )
 
+print("\n7. Adding technical indicators...")
+
+combined = add_indicators(combined)
+
+print(
+    "Indicators:",
+    [
+        "SMA_20",
+        "SMA_50",
+        "EMA_20",
+        "RSI",
+        "MACD",
+    ],
+)
+
+print("Rows after indicators:", len(combined))
 
 # ---------------------------------------------------------
 # 8. GENERATE HYBRID SIGNALS
 # ---------------------------------------------------------
 
-print("\n7. Generating hybrid signals...")
+print("\n8. Generating hybrid signals...")
 
 combined = generate_hybrid_signals(
     combined,
@@ -157,6 +173,32 @@ print("\nSignal distribution:")
 print(
     combined["Signal"].value_counts()
 )
+print("\nSentiment events with technical indicators:")
+
+sentiment_events = combined[
+    combined["sentiment_score"] != 0
+]
+
+if not sentiment_events.empty:
+    print(
+        sentiment_events[
+            [
+                "Close",
+                "SMA_20",
+                "SMA_50",
+                "RSI",
+                "MACD",
+                "MACD_SIGNAL",
+                "sentiment_score",
+                "technical_score",
+                "sentiment_normalized",
+                "hybrid_score",
+                "Signal",
+            ]
+        ].to_string()
+    )
+else:
+    print("No sentiment events found.")
 
 
 # ---------------------------------------------------------
@@ -195,7 +237,7 @@ else:
 # 10. RUN BACKTEST
 # ---------------------------------------------------------
 
-print("\n8. Running hybrid backtest...")
+print("\n9. Running hybrid backtest...")
 
 backtest_data, trades = run_backtest(
     combined,
