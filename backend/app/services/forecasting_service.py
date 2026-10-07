@@ -122,15 +122,13 @@ def generate_rolling_arima_forecasts(
         historical_data = df[column].iloc[:i]
 
         try:
-            model = ARIMA(
+            historical_data = df.iloc[:i]
+
+            forecast = forecast_arima(
                 historical_data,
+                column=column,
+                steps=1,
                 order=order,
-            )
-
-            fitted_model = model.fit()
-
-            forecast = fitted_model.forecast(
-                steps=1
             )
 
             forecasts[i] = float(forecast.iloc[0])
@@ -158,3 +156,48 @@ def generate_rolling_arima_forecasts(
     ] = "BEARISH"
 
     return df
+
+def compare_forecasts(
+    current_price: float,
+    arima_forecast: float,
+    lstm_forecast: float,
+) -> dict:
+    """
+    Compare ARIMA and LSTM forecasts and determine
+    their individual directions.
+    """
+
+    arima_return = (
+        (arima_forecast - current_price)
+        / current_price
+    )
+
+    lstm_return = (
+        (lstm_forecast - current_price)
+        / current_price
+    )
+
+    def get_direction(expected_return):
+        if expected_return >= 0.005:
+            return "BULLISH"
+        elif expected_return <= -0.005:
+            return "BEARISH"
+        return "NEUTRAL"
+
+    return {
+        "current_price": float(current_price),
+
+        "arima_forecast": float(arima_forecast),
+        "arima_expected_return": float(arima_return),
+        "arima_direction": get_direction(arima_return),
+
+        "lstm_forecast": float(lstm_forecast),
+        "lstm_expected_return": float(lstm_return),
+        "lstm_direction": get_direction(lstm_return),
+
+        "models_agree": (
+            get_direction(arima_return)
+            == get_direction(lstm_return)
+        ),
+    }
+

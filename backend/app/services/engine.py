@@ -222,10 +222,7 @@ def run_backtest(
                 "reason": "END_OF_BACKTEST",
 
                 # Explainability
-                "signal_reason": final_row.get(
-                    "signal_reason",
-                    "End of backtest",
-                ),
+                "signal_reason": "END_OF_BACKTEST",
                 "technical_direction": final_row.get(
                     "technical_direction",
                     None,
