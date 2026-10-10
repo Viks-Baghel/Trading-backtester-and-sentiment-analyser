@@ -81,7 +81,7 @@ def forecast_lstm(
 
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=0.0005,
+        lr=learning_rate,
     )
     criterion = nn.MSELoss()
 

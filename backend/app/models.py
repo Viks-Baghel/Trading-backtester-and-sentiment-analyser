@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
@@ -14,6 +14,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.db import Base
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class UserType(Base):
     __tablename__ = "user_types"
@@ -37,7 +41,7 @@ class UserType(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 class Role(Base):
     __tablename__ = "roles"
@@ -61,7 +65,7 @@ class Role(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 class User(Base):
@@ -104,13 +108,13 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=_utcnow_naive,
+        onupdate=_utcnow_naive,
     )
 class UserRole(Base):
     __tablename__ = "user_roles"
@@ -133,7 +137,7 @@ class UserRole(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
     __table_args__ = (
@@ -187,7 +191,7 @@ class Asset(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -221,7 +225,7 @@ class DataSource(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -260,7 +264,7 @@ class ModelRegistry(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -305,7 +309,7 @@ class Strategy(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -361,7 +365,7 @@ class Backtest(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
     completed_at: Mapped[Optional[datetime]] = mapped_column(
@@ -466,7 +470,7 @@ class SentimentScore(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -520,7 +524,7 @@ class Signal(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -569,7 +573,7 @@ class Trade(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -619,7 +623,7 @@ class PerformanceMetric(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
 
 
@@ -658,5 +662,5 @@ class AuditLog(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )

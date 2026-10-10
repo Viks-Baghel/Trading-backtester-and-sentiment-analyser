@@ -19,7 +19,7 @@ class TestBacktestEngine(unittest.TestCase):
             ),
         )
 
-        result, trades = run_backtest(
+        _, trades = run_backtest(
             data,
             initial_capital=100000.0,
         )
