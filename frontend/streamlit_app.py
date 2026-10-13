@@ -72,7 +72,7 @@ INDIAN_STOCKS = {
 
 st.set_page_config(
     page_title="QuantLab | Systematic Research",
-    page_icon="◈",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -82,11 +82,11 @@ apply_theme()
 
 
 # ---------------------------------------------------------
-# CHART STYLING (retro palette shared with theme.py)
+# CHART STYLING (shared with theme.py)
 # ---------------------------------------------------------
 
 def style_fig(fig, height, **layout):
-    """Apply the retro look to any Plotly figure."""
+    """Apply the shared chart styling to any Plotly figure."""
     p = palette()
     layout.setdefault("margin", dict(l=10, r=10, t=30, b=10))
     fig.update_layout(
@@ -94,7 +94,7 @@ def style_fig(fig, height, **layout):
         height=height,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Space Mono, monospace", color=p["text"]),
+        font=dict(family="Inter, sans-serif", color=p["text"]),
         colorway=[p["cyan"], p["pink"], p["yellow"], p["green"]],
         **layout,
     )
@@ -151,13 +151,13 @@ WORKSPACE_PAGES = [
 ]
 
 PAGE_ICONS = {
-    "Overview": "◈",
-    "Strategy Builder": "⚙",
-    "Backtest Results": "▤",
-    "Trade History": "≡",
-    "Sentiment Analysis": "✎",
-    "Forecasting": "↗",
-    "Profile & Settings": "☺",
+    "Overview": "",
+    "Strategy Builder": "",
+    "Backtest Results": "",
+    "Trade History": "",
+    "Sentiment Analysis": "",
+    "Forecasting": "",
+    "Profile & Settings": "",
 }
 
 
@@ -300,27 +300,16 @@ def _display_name(user):
 # NAVBAR
 # ---------------------------------------------------------
 
-TICKER_TEXT = (
-    "▓▓ QUANTLAB RESEARCH TERMINAL ▓▓ BACKTESTING ◆ FINBERT SENTIMENT ◆ "
-    "ARIMA ◆ LSTM ◆ RISK ANALYTICS ▓▓ RESEARCH ONLY — NO LIVE ORDERS ▓▓ "
-    "PAST PERFORMANCE DOES NOT GUARANTEE FUTURE RESULTS ▓▓ "
-)
-
-st.markdown(
-    f'<div class="ql-ticker"><span>{TICKER_TEXT}</span></div>',
-    unsafe_allow_html=True,
-)
-
 _authenticated = is_authenticated()
 _route = st.session_state.get("public_nav", "Home")
 
 BRAND_HTML = (
     '<div class="ql-brand">'
-    '<span class="ql-brand-mark">Q</span>QUANTLAB'
+    '<span class="ql-brand-mark">Q</span>QuantLab'
     '</div>'
     '<div class="ql-label" '
     'style="margin-left:41px;margin-top:6px">'
-    'SYSTEMATIC RESEARCH</div>'
+    'Systematic research</div>'
 )
 
 if _authenticated and _route == "Workspace":
@@ -337,7 +326,7 @@ if _authenticated and _route == "Workspace":
 
         st.markdown(
             '<div class="ql-nav-status">'
-            'PRIVATE RESEARCH WORKSPACE</div>',
+            'Private research workspace</div>',
             unsafe_allow_html=True,
         )
 
@@ -351,7 +340,7 @@ if _authenticated and _route == "Workspace":
 
         with theme_col:
             st.button(
-                "☼ / ◐",
+                "Theme",
                 key="theme_auth_top",
                 help="Switch theme",
                 use_container_width=True,
@@ -417,7 +406,7 @@ else:
 
         with theme_col:
             st.button(
-                "☼ / ◐",
+                "Theme",
                 key="theme_public_top",
                 help="Switch theme",
                 use_container_width=True,
@@ -493,7 +482,7 @@ def footer():
     f1, f2, f3, f4 = st.columns([2.2, 1, 1, 1])
 
     with f1:
-        st.markdown("**QUANTLAB**")
+        st.markdown("**QuantLab**")
         st.caption(
             "Research tools for systematic strategy evaluation."
         )
@@ -515,7 +504,7 @@ def footer():
 
     st.markdown(
         '<div class="ql-caption" '
-        'style="border-top:2px solid var(--ql-border);'
+        'style="border-top:1px solid var(--ql-border);'
         'padding-top:12px;margin-top:10px">'
         '© 2026 QuantLab · For research and educational use. '
         'Historical backtests do not guarantee future results. '
@@ -547,9 +536,9 @@ def hero_visual():
             x=x,
             y=y,
             mode="lines",
-            line=dict(color=p["pink"], width=3, shape="hv"),
+            line=dict(color=p["cyan"], width=2.5),
             fill="tozeroy",
-            fillcolor="rgba(158,58,63,0.18)",
+            fillcolor="rgba(37,99,235,0.10)",
             hoverinfo="skip",
             name="Illustrative curve",
         )
@@ -694,8 +683,8 @@ def public_home():
             st.markdown(
                 f'<div class="ql-panel" style="min-height:210px">'
                 f'<div class="ql-kicker">{num}</div>'
-                f'<div style="font-family:\'Press Start 2P\',monospace;'
-                f'font-size:11px;line-height:1.7;margin-top:14px">'
+                f'<div style="font-weight:600;font-size:16px;'
+                f'line-height:1.4;margin-top:12px">'
                 f'{title}</div>'
                 f'<div class="ql-caption" '
                 f'style="font-size:13px;margin-top:12px">'
@@ -771,7 +760,7 @@ def public_products():
     for title, body in products:
         st.markdown(
             f'<div class="ql-panel" style="margin-bottom:18px">'
-            f'<b style="color:var(--ql-yellow)">▶ {title}</b>'
+            f'<b>{title}</b>'
             f'<div class="ql-caption" style="margin-top:6px">{body}</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -1140,7 +1129,7 @@ def render_sidebar():
     with st.sidebar:
         st.markdown(
             '<div class="ql-side-brand">'
-            '<span class="ql-brand-mark">Q</span>QUANTLAB</div>',
+            '<span class="ql-brand-mark">Q</span>QuantLab</div>',
             unsafe_allow_html=True,
         )
 
@@ -1149,13 +1138,13 @@ def render_sidebar():
             f'<div class="ql-avatar">{initial}</div>'
             '<div>'
             f'<div class="ql-side-name">{html.escape(name)}</div>'
-            '<div class="ql-side-role">● Researcher · Online</div>'
+            '<div class="ql-side-role">Researcher</div>'
             '</div></div>',
             unsafe_allow_html=True,
         )
 
         st.markdown(
-            '<div class="ql-side-heading">▶ NAVIGATION</div>',
+            '<div class="ql-side-heading">Navigation</div>',
             unsafe_allow_html=True,
         )
 
@@ -1184,7 +1173,7 @@ def render_sidebar():
             )
 
             st.markdown(
-                '<div class="ql-side-heading">▶ LAST RUN</div>',
+                '<div class="ql-side-heading">Last run</div>',
                 unsafe_allow_html=True,
             )
 
@@ -1227,21 +1216,21 @@ def render_sidebar():
             )
 
         st.markdown(
-            '<div class="ql-side-heading">▶ SYSTEM</div>',
+            '<div class="ql-side-heading">System</div>',
             unsafe_allow_html=True,
         )
 
         is_dark = st.session_state.get("ql_theme", "Dark") == "Dark"
 
         st.button(
-            "☼  Switch to Light" if is_dark else "◐  Switch to Dark",
+            "Switch to light theme" if is_dark else "Switch to dark theme",
             key="sidebar_theme",
             use_container_width=True,
             on_click=toggle_theme,
         )
 
         st.button(
-            "⏻  Log out",
+            "Log out",
             key="sidebar_logout",
             use_container_width=True,
             on_click=clear_auth_session,
@@ -1312,7 +1301,7 @@ def app_workspace():
     st.markdown(
         '<div style="display:flex;justify-content:space-between;'
         'align-items:center;flex-wrap:wrap;gap:10px">'
-        '<div><div class="ql-kicker">PRIVATE RESEARCH TERMINAL</div>'
+        '<div><div class="ql-kicker">Private research workspace</div>'
         f'<h1 style="margin:4px 0">{PAGE_ICONS.get(workspace_page, "")} '
         f'{html.escape(workspace_page)}</h1></div>'
         '<span class="ql-pill">AUTHENTICATED SESSION</span></div>',
@@ -1398,7 +1387,7 @@ def app_workspace():
                 "Hybrid Strategy",
                 "Custom Strategy",
             ):
-                with st.expander("📰 Add Financial News", expanded=True):
+                with st.expander("Add financial news", expanded=True):
                     st.caption(
                         "Add headlines and their publication dates for sentiment analysis."
                     )
@@ -1929,7 +1918,7 @@ def app_workspace():
                                     pal["yellow"],
                                     pal["red"],
                                 ],
-                                line=dict(color=pal["border"], width=2),
+                                line=dict(color=pal["border"], width=1),
                             ),
                         )
                     )
