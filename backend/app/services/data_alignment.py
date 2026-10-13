@@ -241,7 +241,7 @@ def align_price_and_sentiment(
         sentiment_for_merge,
         left_on="price_date",
         right_on="available_from",
-        direction="forward",
+        direction="backward",
     )
 
     # =========================================================

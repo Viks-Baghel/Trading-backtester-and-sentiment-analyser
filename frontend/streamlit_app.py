@@ -1,5 +1,6 @@
 import os
 import math
+import html
 import requests
 import pandas as pd
 import plotly.graph_objects as go
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from streamlit_cookies_manager import EncryptedCookieManager
-from theme import apply_theme, init_theme, panel_metric
+from theme import apply_theme, init_theme, panel_metric, palette
 
 API_URL = os.getenv(
     "QUANTLAB_API_URL",
@@ -18,22 +19,89 @@ API_URL = os.getenv(
 AUTH_URL = f"{API_URL}/api/v1/auth"
 WORKSPACE_STATE_URL = f"{API_URL}/api/v1/workspace/state"
 
+
+
 STRATEGIES = {
-    "Technical Strategy": "technical",
-    "FinBERT Sentiment": "sentiment",
-    "AI Hybrid + ARIMA": "hybrid_arima",
-    "AI Hybrid + LSTM": "hybrid_lstm",
+    "Backtesting": "technical",
+    "Sentiment Analysis": "sentiment",
+    "Hybrid Strategy": "hybrid_full",
+    "Custom Strategy": "custom",
 }
+
+STRATEGY_DESCRIPTIONS = {
+    "Backtesting": "Test trading rules on historical prices.",
+    "Sentiment Analysis": "Analyze financial news sentiment.",
+    "Hybrid Strategy": "Combine market trends, news and predictions.",
+    "Custom Strategy": "Create your own trading rules.",
+}
+
+
+INDIAN_STOCKS = {
+    "Reliance Industries": "RELIANCE.NS",
+    "TCS": "TCS.NS",
+    "Infosys": "INFY.NS",
+    "HDFC Bank": "HDFCBANK.NS",
+    "ICICI Bank": "ICICIBANK.NS",
+    "State Bank of India": "SBIN.NS",
+    "Bharti Airtel": "BHARTIARTL.NS",
+    "ITC": "ITC.NS",
+    "Larsen & Toubro": "LT.NS",
+    "Tata Motors": "TATAMOTORS.NS",
+    "Tata Steel": "TATASTEEL.NS",
+    "Hindustan Unilever": "HINDUNILVR.NS",
+    "Axis Bank": "AXISBANK.NS",
+    "Kotak Mahindra Bank": "KOTAKBANK.NS",
+    "Bajaj Finance": "BAJFINANCE.NS",
+    "Maruti Suzuki": "MARUTI.NS",
+    "Sun Pharma": "SUNPHARMA.NS",
+    "Wipro": "WIPRO.NS",
+    "HCL Technologies": "HCLTECH.NS",
+    "Tech Mahindra": "TECHM.NS",
+    "NTPC": "NTPC.NS",
+    "Power Grid": "POWERGRID.NS",
+    "ONGC": "ONGC.NS",
+    "Coal India": "COALINDIA.NS",
+    "Titan Company": "TITAN.NS",
+    "Asian Paints": "ASIANPAINT.NS",
+    "UltraTech Cement": "ULTRACEMCO.NS",
+    "Bajaj Finserv": "BAJAJFINSV.NS",
+    "Adani Ports": "ADANIPORTS.NS",
+    "IndusInd Bank": "INDUSINDBK.NS",
+}
+
 
 st.set_page_config(
     page_title="QuantLab | Systematic Research",
     page_icon="◈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 init_theme()
 apply_theme()
+
+
+# ---------------------------------------------------------
+# CHART STYLING (retro palette shared with theme.py)
+# ---------------------------------------------------------
+
+def style_fig(fig, height, **layout):
+    """Apply the retro look to any Plotly figure."""
+    p = palette()
+    layout.setdefault("margin", dict(l=10, r=10, t=30, b=10))
+    fig.update_layout(
+        template=p["plotly"],
+        height=height,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Space Mono, monospace", color=p["text"]),
+        colorway=[p["cyan"], p["pink"], p["yellow"], p["green"]],
+        **layout,
+    )
+    fig.update_xaxes(gridcolor=p["grid"], zerolinecolor=p["grid"])
+    fig.update_yaxes(gridcolor=p["grid"], zerolinecolor=p["grid"])
+    return fig
+
 
 # ---------------------------------------------------------
 # PERSISTENT AUTHENTICATION
@@ -72,7 +140,6 @@ if not cookies.ready():
 
 
 # Define workspace pages and helpers BEFORE restoring a session.
-# This avoids calling load_workspace_page before it exists.
 WORKSPACE_PAGES = [
     "Overview",
     "Strategy Builder",
@@ -82,6 +149,16 @@ WORKSPACE_PAGES = [
     "Forecasting",
     "Profile & Settings",
 ]
+
+PAGE_ICONS = {
+    "Overview": "◈",
+    "Strategy Builder": "⚙",
+    "Backtest Results": "▤",
+    "Trade History": "≡",
+    "Sentiment Analysis": "✎",
+    "Forecasting": "↗",
+    "Profile & Settings": "☺",
+}
 
 
 def load_workspace_page(token):
@@ -211,12 +288,40 @@ def is_authenticated():
     )
 
 
+def _display_name(user):
+    return (
+        user.get("username")
+        or user.get("email")
+        or "QuantLab user"
+    )
+
+
 # ---------------------------------------------------------
 # NAVBAR
 # ---------------------------------------------------------
 
+TICKER_TEXT = (
+    "▓▓ QUANTLAB RESEARCH TERMINAL ▓▓ BACKTESTING ◆ FINBERT SENTIMENT ◆ "
+    "ARIMA ◆ LSTM ◆ RISK ANALYTICS ▓▓ RESEARCH ONLY — NO LIVE ORDERS ▓▓ "
+    "PAST PERFORMANCE DOES NOT GUARANTEE FUTURE RESULTS ▓▓ "
+)
+
+st.markdown(
+    f'<div class="ql-ticker"><span>{TICKER_TEXT}</span></div>',
+    unsafe_allow_html=True,
+)
+
 _authenticated = is_authenticated()
 _route = st.session_state.get("public_nav", "Home")
+
+BRAND_HTML = (
+    '<div class="ql-brand">'
+    '<span class="ql-brand-mark">Q</span>QUANTLAB'
+    '</div>'
+    '<div class="ql-label" '
+    'style="margin-left:41px;margin-top:6px">'
+    'SYSTEMATIC RESEARCH</div>'
+)
 
 if _authenticated and _route == "Workspace":
     nav_left, nav_mid, nav_right = st.columns(
@@ -225,15 +330,7 @@ if _authenticated and _route == "Workspace":
     )
 
     with nav_left:
-        st.markdown(
-            '<div class="ql-brand">'
-            '<span class="ql-brand-mark">Q</span>QUANTLAB'
-            '</div>'
-            '<div class="ql-label" '
-            'style="margin-left:39px;margin-top:-2px">'
-            'SYSTEMATIC RESEARCH</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(BRAND_HTML, unsafe_allow_html=True)
 
     with nav_mid:
         current_user = st.session_state.get("ql_user", {})
@@ -244,10 +341,7 @@ if _authenticated and _route == "Workspace":
             unsafe_allow_html=True,
         )
 
-        st.caption(
-            "Signed in · "
-            f"{current_user.get('username') or current_user.get('email') or 'User'}"
-        )
+        st.caption(f"Signed in · {_display_name(current_user)}")
 
     with nav_right:
         theme_col, logout_col = st.columns(
@@ -273,6 +367,11 @@ if _authenticated and _route == "Workspace":
                 on_click=clear_auth_session,
             )
 
+    st.markdown(
+        '<div style="height:2px"></div>',
+        unsafe_allow_html=True,
+    )
+
     st.radio(
         "Workspace navigation",
         options=WORKSPACE_PAGES,
@@ -289,15 +388,7 @@ else:
     )
 
     with nav_left:
-        st.markdown(
-            '<div class="ql-brand">'
-            '<span class="ql-brand-mark">Q</span>QUANTLAB'
-            '</div>'
-            '<div class="ql-label" '
-            'style="margin-left:39px;margin-top:-2px">'
-            'SYSTEMATIC RESEARCH</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(BRAND_HTML, unsafe_allow_html=True)
 
     with nav_mid:
         public_pages = ["Home", "Products", "About", "Contact"]
@@ -395,7 +486,7 @@ st.markdown(
 
 def footer():
     st.markdown(
-        '<div class="ql-footer">',
+        '<div class="ql-footer"></div>',
         unsafe_allow_html=True,
     )
 
@@ -423,12 +514,13 @@ def footer():
         st.markdown("Risk Disclosure")
 
     st.markdown(
-        '<div style="border-top:1px solid var(--ql-border);'
+        '<div class="ql-caption" '
+        'style="border-top:2px solid var(--ql-border);'
         'padding-top:12px;margin-top:10px">'
         '© 2026 QuantLab · For research and educational use. '
         'Historical backtests do not guarantee future results. '
         'This platform does not execute live trades.'
-        '</div></div>',
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -439,6 +531,7 @@ def footer():
 
 def hero_visual():
     # Decorative illustration, not live market data.
+    p = palette()
     fig = go.Figure()
     x = list(range(80))
     y = [
@@ -454,20 +547,18 @@ def hero_visual():
             x=x,
             y=y,
             mode="lines",
-            line=dict(color="#4cd7f6", width=2),
+            line=dict(color=p["pink"], width=3, shape="hv"),
             fill="tozeroy",
-            fillcolor="rgba(76,215,246,0.08)",
+            fillcolor="rgba(158,58,63,0.18)",
             hoverinfo="skip",
             name="Illustrative curve",
         )
     )
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=260,
+    style_fig(
+        fig,
+        260,
         margin=dict(l=4, r=4, t=20, b=4),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
@@ -543,31 +634,28 @@ def public_home():
         )
 
     with right:
-        st.markdown(
-            '<div class="ql-panel">',
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.markdown(
+                '<div style="display:flex;justify-content:space-between;'
+                'align-items:center">'
+                '<div><div class="ql-label">RESEARCH PREVIEW</div>'
+                '<div style="font-weight:700;margin-top:5px">'
+                'Strategy evaluation workspace</div></div>'
+                '<span class="ql-pill">ILLUSTRATIVE</span></div>',
+                unsafe_allow_html=True,
+            )
 
-        st.markdown(
-            '<div style="display:flex;justify-content:space-between;'
-            'align-items:center">'
-            '<div><div class="ql-label">RESEARCH PREVIEW</div>'
-            '<div style="font-weight:700;margin-top:5px">'
-            'Strategy evaluation workspace</div></div>'
-            '<span class="ql-pill">ILLUSTRATIVE</span></div>',
-            unsafe_allow_html=True,
-        )
+            hero_visual()
 
-        hero_visual()
+            st.markdown(
+                '<div class="ql-caption">'
+                'Illustrative visual only. Actual portfolio charts and '
+                'metrics appear after a backtest is run.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
-        st.markdown(
-            '<div class="ql-caption">'
-            'Illustrative visual only. Actual portfolio charts and '
-            'metrics appear after a backtest is run.'
-            '</div></div>',
-            unsafe_allow_html=True,
-        )
-
+    st.write("")
     st.write("")
 
     st.markdown(
@@ -604,16 +692,18 @@ def public_home():
     for col, (num, title, desc) in zip(cards, feature_data):
         with col:
             st.markdown(
-                f'<div class="ql-panel" style="height:170px">'
+                f'<div class="ql-panel" style="min-height:210px">'
                 f'<div class="ql-kicker">{num}</div>'
-                f'<div style="font-weight:700;font-size:16px;'
-                f'margin-top:17px">{title}</div>'
+                f'<div style="font-family:\'Press Start 2P\',monospace;'
+                f'font-size:11px;line-height:1.7;margin-top:14px">'
+                f'{title}</div>'
                 f'<div class="ql-caption" '
-                f'style="font-size:13px;margin-top:10px">'
+                f'style="font-size:13px;margin-top:12px">'
                 f'{desc}</div></div>',
                 unsafe_allow_html=True,
             )
 
+    st.write("")
     st.write("")
 
     c1, c2 = st.columns([1, 1], gap="large")
@@ -632,15 +722,11 @@ def public_home():
         )
 
     with c2:
-        st.markdown(
-            '<div class="ql-panel-muted">',
-            unsafe_allow_html=True,
-        )
-        st.markdown("**Designed for experimentation**")
-        st.markdown("- Compare technical and AI-assisted strategies")
-        st.markdown("- Inspect trade history and signal explanations")
-        st.markdown("- Keep research separate from live execution")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**Designed for experimentation**")
+            st.markdown("- Compare technical and AI-assisted strategies")
+            st.markdown("- Inspect trade history and signal explanations")
+            st.markdown("- Keep research separate from live execution")
 
 
 def public_products():
@@ -684,8 +770,10 @@ def public_products():
 
     for title, body in products:
         st.markdown(
-            f'<div class="ql-panel" style="margin-bottom:12px">'
-            f'<b>{title}</b><div class="ql-caption">{body}</div></div>',
+            f'<div class="ql-panel" style="margin-bottom:18px">'
+            f'<b style="color:var(--ql-yellow)">▶ {title}</b>'
+            f'<div class="ql-caption" style="margin-top:6px">{body}</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
@@ -763,6 +851,8 @@ def public_contact():
                 f"The selected topic ({topic}) has not been sent because "
                 "the contact form is not connected to a delivery endpoint."
             )
+
+
 # ---------------------------------------------------------
 # AUTHENTICATION HELPERS
 # ---------------------------------------------------------
@@ -821,7 +911,7 @@ def auth_screen(mode):
 
         st.markdown(
             '<div class="ql-hero-title" '
-            'style="font-size:clamp(32px,3.5vw,46px)">'
+            'style="font-size:clamp(20px,2.6vw,32px)">'
             + (
                 "Your research desk, in one place."
                 if is_signup
@@ -842,7 +932,7 @@ def auth_screen(mode):
         st.markdown(
             '<div class="ql-panel-muted">'
             '<div class="ql-label">ACCOUNT SECURITY</div>'
-            '<div style="font-weight:650;margin-top:8px">'
+            '<div style="font-weight:700;margin-top:8px">'
             'Credentials are sent to your FastAPI authentication endpoint.'
             '</div>'
             '<div class="ql-caption">'
@@ -853,11 +943,6 @@ def auth_screen(mode):
         )
 
     with right:
-        st.markdown(
-            '<div class="ql-panel">',
-            unsafe_allow_html=True,
-        )
-
         st.markdown(
             "### " + (
                 "Create your account" if is_signup else "Sign in"
@@ -1017,7 +1102,6 @@ def auth_screen(mode):
                 except (ValueError, KeyError) as exc:
                     st.error(str(exc))
 
-        st.markdown("</div>", unsafe_allow_html=True)
         st.write("")
 
         if is_signup:
@@ -1041,6 +1125,129 @@ def auth_screen(mode):
             ):
                 st.session_state["public_nav"] = "Sign up"
                 st.rerun()
+
+
+# ---------------------------------------------------------
+# SIDEBAR (authenticated workspace)
+# ---------------------------------------------------------
+
+def render_sidebar():
+    user = st.session_state.get("ql_user", {})
+    name = _display_name(user)
+    initial = html.escape(name.strip()[:1].upper() or "Q")
+    current_page = st.session_state.get("workspace_nav", "Overview")
+
+    with st.sidebar:
+        st.markdown(
+            '<div class="ql-side-brand">'
+            '<span class="ql-brand-mark">Q</span>QUANTLAB</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<div class="ql-side-card">'
+            f'<div class="ql-avatar">{initial}</div>'
+            '<div>'
+            f'<div class="ql-side-name">{html.escape(name)}</div>'
+            '<div class="ql-side-role">● Researcher · Online</div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<div class="ql-side-heading">▶ NAVIGATION</div>',
+            unsafe_allow_html=True,
+        )
+
+        for page in WORKSPACE_PAGES:
+            st.button(
+                f"{PAGE_ICONS.get(page, '•')}  {page}",
+                key=f"side_nav_{page}",
+                type="primary" if page == current_page else "secondary",
+                use_container_width=True,
+                on_click=navigate_workspace,
+                args=(page,),
+            )
+
+        result = st.session_state.get("backtest_result")
+
+        if result:
+            metrics = result.get("metrics", {})
+            total_return = metrics.get("total_return")
+            sharpe = metrics.get("sharpe_ratio")
+            drawdown = metrics.get("max_drawdown")
+
+            ret_class = (
+                "green"
+                if total_return is not None and total_return >= 0
+                else "red"
+            )
+
+            st.markdown(
+                '<div class="ql-side-heading">▶ LAST RUN</div>',
+                unsafe_allow_html=True,
+            )
+
+            rows = [
+                (
+                    "Strategy",
+                    html.escape(
+                        str(result.get("selected_strategy_name", "—"))
+                    ),
+                    "",
+                ),
+                (
+                    "Return",
+                    f"{float(total_return):.2f}%"
+                    if total_return is not None
+                    else "N/A",
+                    ret_class,
+                ),
+                (
+                    "Sharpe",
+                    f"{float(sharpe):.2f}" if sharpe is not None else "N/A",
+                    "",
+                ),
+                (
+                    "Max DD",
+                    f"{float(drawdown):.2f}%"
+                    if drawdown is not None
+                    else "N/A",
+                    "red",
+                ),
+            ]
+
+            st.markdown(
+                "".join(
+                    f'<div class="ql-stat-row"><span>{label}</span>'
+                    f'<b class="{cls}">{value}</b></div>'
+                    for label, value, cls in rows
+                ),
+                unsafe_allow_html=True,
+            )
+
+        st.markdown(
+            '<div class="ql-side-heading">▶ SYSTEM</div>',
+            unsafe_allow_html=True,
+        )
+
+        is_dark = st.session_state.get("ql_theme", "Dark") == "Dark"
+
+        st.button(
+            "☼  Switch to Light" if is_dark else "◐  Switch to Dark",
+            key="sidebar_theme",
+            use_container_width=True,
+            on_click=toggle_theme,
+        )
+
+        st.button(
+            "⏻  Log out",
+            key="sidebar_logout",
+            use_container_width=True,
+            on_click=clear_auth_session,
+        )
+
+        st.caption("Research only — no live orders are placed.")
 
 
 # ---------------------------------------------------------
@@ -1095,28 +1302,7 @@ def app_workspace():
             "connection returns."
         )
 
-    # Backup logout: always available in the sidebar.
-    with st.sidebar:
-        st.markdown("### QuantLab")
-        st.caption("Authenticated workspace")
-
-        sidebar_user = st.session_state.get("ql_user", {})
-
-        st.write(
-            sidebar_user.get("username")
-            or sidebar_user.get("email")
-            or "Signed-in user"
-        )
-
-        st.divider()
-
-        st.button(
-            "Log out",
-            key="sidebar_logout",
-            type="primary",
-            use_container_width=True,
-            on_click=clear_auth_session,
-        )
+    render_sidebar()
 
     workspace_page = st.session_state.get(
         "workspace_nav",
@@ -1125,9 +1311,10 @@ def app_workspace():
 
     st.markdown(
         '<div style="display:flex;justify-content:space-between;'
-        'align-items:center">'
+        'align-items:center;flex-wrap:wrap;gap:10px">'
         '<div><div class="ql-kicker">PRIVATE RESEARCH TERMINAL</div>'
-        '<h1 style="margin:4px 0">Workspace</h1></div>'
+        f'<h1 style="margin:4px 0">{PAGE_ICONS.get(workspace_page, "")} '
+        f'{html.escape(workspace_page)}</h1></div>'
         '<span class="ql-pill">AUTHENTICATED SESSION</span></div>',
         unsafe_allow_html=True,
     )
@@ -1135,10 +1322,11 @@ def app_workspace():
     current_user = st.session_state.get("ql_user", {})
 
     st.caption(
-        f"Signed in as "
-        f"{current_user.get('username') or current_user.get('email') or 'QuantLab user'}"
+        f"Signed in as {_display_name(current_user)}"
         " · Research only — no live orders are placed."
     )
+
+    st.write("")
 
     # -----------------------------------------------------
     # OVERVIEW
@@ -1153,17 +1341,30 @@ def app_workspace():
         )
 
         with left:
-            symbol = st.selectbox(
-                "Instrument",
-                ["RELIANCE.NS", "TCS.NS", "INFY.NS", "AAPL"],
-                key="ws_symbol",
+            
+            selected_stock = st.selectbox(
+                "Indian stock",
+                list(INDIAN_STOCKS.keys()),
+                key="ws_stock_name",
             )
+
+            symbol = INDIAN_STOCKS[selected_stock]
+
+            custom_symbol = st.text_input(
+                "Or enter another ticker",
+                placeholder="e.g. SBIN.NS",
+                key="ws_custom_symbol",
+            ).strip().upper()
+
+            if custom_symbol:
+                symbol = custom_symbol
 
             strategy_name = st.selectbox(
                 "Strategy",
                 list(STRATEGIES.keys()),
                 key="ws_strategy",
             )
+            st.caption(STRATEGY_DESCRIPTIONS[strategy_name]);
 
             date_left, date_right = st.columns(2)
 
@@ -1189,6 +1390,114 @@ def app_workspace():
                 key="ws_capital",
             )
 
+
+            news_articles = []
+
+            if strategy_name in (
+                "Sentiment Analysis",
+                "Hybrid Strategy",
+                "Custom Strategy",
+            ):
+                with st.expander("📰 Add Financial News", expanded=True):
+                    st.caption(
+                        "Add headlines and their publication dates for sentiment analysis."
+                    )
+
+                    initial_news = pd.DataFrame(
+                        [{"news_date": start, "headline": ""}]
+                    )
+
+                    edited_news = st.data_editor(
+                        initial_news,
+                        num_rows="dynamic",
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "news_date": st.column_config.DateColumn(
+                                "Publication date",
+                                format="YYYY-MM-DD",
+                            ),
+                            "headline": st.column_config.TextColumn(
+                                "Financial news headline",
+                                help="Enter or paste a financial news headline.",
+                            ),
+                        },
+                        key="backtest_news_editor",
+                    )
+
+                    news_articles = [
+                        {
+                            "news_date": (
+                                row["news_date"].isoformat()
+                                if hasattr(row["news_date"], "isoformat")
+                                else str(row["news_date"])
+                            ),
+                            "headline": str(row["headline"]).strip(),
+                        }
+                        for _, row in edited_news.iterrows()
+                        if pd.notna(row["news_date"])
+                        and str(row["headline"]).strip()
+                    ]
+
+                    st.caption(f"{len(news_articles)} headline(s) added")
+
+
+            custom_config = {}
+
+            if strategy_name == "Custom Strategy":
+                st.markdown("#### Custom strategy configuration")
+
+                custom_type = st.selectbox(
+                    "Strategy type",
+                    ["technical", "sentiment", "hybrid"],
+                    key="custom_strategy_type",
+                )
+
+                rsi_buy_max = st.slider(
+                    "RSI buy threshold",
+                    40, 90, 70,
+                    key="custom_rsi_buy",
+                )
+
+                rsi_sell_min = st.slider(
+                    "RSI sell threshold",
+                    40, 90, 70,
+                    key="custom_rsi_sell",
+                )
+
+                sentiment_buy = st.slider(
+                    "Bullish sentiment threshold",
+                    0.05, 0.80, 0.20, 0.05,
+                    key="custom_sentiment_buy",
+                )
+
+                sentiment_sell = st.slider(
+                    "Bearish sentiment threshold",
+                    -0.80, -0.05, -0.20, 0.05,
+                    key="custom_sentiment_sell",
+                )
+
+                technical_weight = 0.60
+
+                if custom_type == "hybrid":
+                    technical_weight = st.slider(
+                        "Technical weight",
+                        0.0, 1.0, 0.60, 0.05,
+                        key="custom_technical_weight",
+                    )
+
+                custom_config = {
+                    "strategy_type": custom_type,
+                    "rsi_buy_max": float(rsi_buy_max),
+                    "rsi_sell_min": float(rsi_sell_min),
+                    "sentiment_buy_threshold": float(sentiment_buy),
+                    "sentiment_sell_threshold": float(sentiment_sell),
+                    "technical_weight": float(technical_weight),
+                    "sentiment_weight": float(1 - technical_weight),
+                    "buy_score_threshold": 0.65,
+                    "sell_score_threshold": 0.35,
+                }
+
             run = st.button(
                 "Execute backtest",
                 type="primary",
@@ -1207,7 +1516,9 @@ def app_workspace():
                             response = requests.post(
                                 f"{API_URL}/backtests/run",
                                 json={
+                                    "news_articles": news_articles,
                                     "symbol": symbol,
+                                    "custom_config": custom_config,
                                     "start_date": start.isoformat(),
                                     "end_date": end.isoformat(),
                                     "initial_capital": float(capital),
@@ -1349,23 +1660,17 @@ def app_workspace():
                             y=curve["portfolio_value"],
                             mode="lines",
                             line=dict(
-                                color="#4cd7f6",
-                                width=2,
+                                color=palette()["cyan"],
+                                width=2.5,
                             ),
                             name="Equity",
                         )
                     )
 
-                    fig.update_layout(
-                        template=(
-                            "plotly_dark"
-                            if st.session_state.get("ql_theme", "Dark") == "Dark"
-                            else "plotly_white"
-                        ),
-                        height=300,
+                    style_fig(
+                        fig,
+                        300,
                         margin=dict(l=5, r=5, t=15, b=5),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
                     )
 
                     st.plotly_chart(
@@ -1380,20 +1685,39 @@ def app_workspace():
     else:
         result = st.session_state.get("backtest_result", {})
 
+        
         if workspace_page == "Strategy Builder":
             st.markdown("### Strategy Builder")
-            st.markdown(
-                "Choose among strategies currently supported by the "
-                "backend. Strategy parameter editing can be added once "
-                "those parameters are exposed by the API."
+            st.caption(
+                "Choose a strategy to configure and test from Overview."
             )
+
+            descriptions = {
+                "technical": "Indicator-driven entry and exit rules.",
+                "sentiment": "Signals based on financial-news sentiment.",
+                "hybrid_arima": "Technical indicators, sentiment and ARIMA.",
+                "hybrid_lstm": "Technical indicators, sentiment and LSTM.",
+                "custom": "Configure technical and sentiment thresholds.",
+                "hybrid_full": (
+                    "Combines technical indicators, sentiment, "
+                    "ARIMA and LSTM forecasts."
+                ),
+            }
 
             for name, strategy_id in STRATEGIES.items():
                 with st.container(border=True):
                     st.markdown(f"**{name}**")
-                    st.caption(
-                        f"Backend strategy identifier: {strategy_id}"
-                    )
+                    st.caption(descriptions[strategy_id])
+
+                    if st.button(
+                        f"Configure {name}",
+                        key=f"configure_{strategy_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["ws_strategy"] = name
+                        navigate_workspace("Overview")
+                        st.rerun()
+
 
         elif workspace_page == "Backtest Results":
             st.markdown("### Backtest Results")
@@ -1403,6 +1727,7 @@ def app_workspace():
             else:
                 st.info("Run a backtest from Overview first.")
 
+        
         elif workspace_page == "Trade History":
             st.markdown("### Trade History")
 
@@ -1413,23 +1738,42 @@ def app_workspace():
             )
 
             if trades.empty:
-                st.info("No trade history available yet.")
+                st.info(
+                    "No trade history available yet. "
+                    "Run a backtest from Overview to generate trades."
+                )
 
             else:
+                st.caption(
+                    f"{len(trades)} trade records · "
+                    f"Strategy: "
+                    f"{result.get('selected_strategy_name', 'Unknown')}"
+                )
+
+                # Keep the original data intact for CSV export.
+                export_trades = trades.copy()
+
+                # Improve only the on-screen presentation.
+                display_trades = trades.copy()
+                display_trades = display_trades.replace(
+                    {None: "—"}
+                )
+                display_trades = display_trades.fillna("—")
+
                 st.dataframe(
-                    trades,
+                    display_trades,
                     use_container_width=True,
                     hide_index=True,
                 )
 
                 st.download_button(
                     "Download trade history CSV",
-                    data=trades.to_csv(index=False).encode("utf-8"),
+                    data=export_trades.to_csv(
+                        index=False
+                    ).encode("utf-8"),
                     file_name="quantlab_trade_history.csv",
                     mime="text/csv",
                 )
-
-        
         elif workspace_page == "Sentiment Analysis":
             st.markdown("## Sentiment Analysis")
             st.caption(
@@ -1572,23 +1916,27 @@ def app_workspace():
                 )
 
                 if distribution_df["Articles"].sum() > 0:
+                    pal = palette()
                     fig = go.Figure(
                         go.Bar(
                             x=distribution_df["Sentiment"],
                             y=distribution_df["Articles"],
                             text=distribution_df["Articles"],
                             textposition="auto",
+                            marker=dict(
+                                color=[
+                                    pal["green"],
+                                    pal["yellow"],
+                                    pal["red"],
+                                ],
+                                line=dict(color=pal["border"], width=2),
+                            ),
                         )
                     )
-                    fig.update_layout(
-                        height=300,
+                    style_fig(
+                        fig,
+                        300,
                         margin=dict(l=10, r=10, t=20, b=10),
-                        template=(
-                            "plotly_dark"
-                            if st.session_state.get("ql_theme", "Dark")
-                            == "Dark"
-                            else "plotly_white"
-                        ),
                         showlegend=False,
                         xaxis_title=None,
                         yaxis_title="Number of headlines",
@@ -1794,7 +2142,6 @@ def app_workspace():
                     direction,
                 )
 
-                
                 forecast_prices = forecast_result.get(
                     "forecast_prices", []
                 )
@@ -1830,7 +2177,7 @@ def app_workspace():
                             historical_df["close"].iloc[-1]
                         )
 
-                        # Use business-day labels for forecast steps.
+                        # Use step labels for forecast points.
                         # These are illustrative step labels, not
                         # confirmed exchange trading-session dates.
                         forecast_labels = [
@@ -1868,16 +2215,10 @@ def app_workspace():
                             annotation_text="Forecast starts",
                         )
 
-                    fig.update_layout(
-                        height=450,
+                    style_fig(
+                        fig,
+                        450,
                         margin=dict(l=10, r=10, t=30, b=10),
-                        template=(
-                            "plotly_dark"
-                            if st.session_state.get(
-                                "ql_theme", "Dark"
-                            ) == "Dark"
-                            else "plotly_white"
-                        ),
                         xaxis_title="Historical date / forecast step",
                         yaxis_title="Price",
                         legend=dict(
@@ -1915,17 +2256,6 @@ def app_workspace():
                         hide_index=True,
                     )
 
-
-                if forecast_prices:
-                    forecast_df = pd.DataFrame(
-                        {
-                            "Forecast step": range(
-                                1, len(forecast_prices) + 1
-                            ),
-                            "Predicted price": forecast_prices,
-                        }
-                    )
-
                     st.markdown("### Forecast trajectory")
 
                     fig = go.Figure()
@@ -1945,15 +2275,10 @@ def app_workspace():
                         annotation_text="Last closing price",
                     )
 
-                    fig.update_layout(
-                        height=360,
+                    style_fig(
+                        fig,
+                        360,
                         margin=dict(l=10, r=10, t=30, b=10),
-                        template=(
-                            "plotly_dark"
-                            if st.session_state.get("ql_theme", "Dark")
-                            == "Dark"
-                            else "plotly_white"
-                        ),
                         xaxis_title="Forecast step",
                         yaxis_title="Price",
                     )
@@ -1961,12 +2286,6 @@ def app_workspace():
                     st.plotly_chart(
                         fig,
                         use_container_width=True,
-                    )
-
-                    st.dataframe(
-                        forecast_df,
-                        use_container_width=True,
-                        hide_index=True,
                     )
 
                 st.caption(
@@ -1980,7 +2299,7 @@ def app_workspace():
                         "Forecasts are estimates and are not investment advice.",
                     )
                 )
-            
+
             st.divider()
             st.markdown("### Historical Model Evaluation")
             st.caption(
@@ -1992,11 +2311,22 @@ def app_workspace():
                 eval_col1, eval_col2, eval_col3 = st.columns(3)
 
                 with eval_col1:
-                    eval_symbol = st.text_input(
+                    eval_symbol = st.selectbox(
                         "Evaluation symbol",
-                        value="RELIANCE.NS",
+                        options=[
+                            "RELIANCE.NS",
+                            "TCS.NS",
+                            "INFY.NS",
+                            "AAPL",
+                            "MSFT",
+                        ],
+                        index=0,
                         key="evaluation_symbol",
-                    ).strip().upper()
+                        help=(
+                            "Choose a stock to evaluate using the same "
+                            "historical evaluation method."
+                        ),
+                    )
 
                 with eval_col2:
                     eval_start = st.date_input(
@@ -2088,41 +2418,125 @@ def app_workspace():
             )
 
             if evaluation_result:
-                st.markdown("#### Evaluation metrics")
+                st.markdown("#### ARIMA vs. Naive Baseline")
 
                 eval_metrics = evaluation_result.get("metrics", {})
+                arima_metrics = eval_metrics.get("arima", {})
+                baseline_metrics = eval_metrics.get("naive_baseline", {})
+                improvements = eval_metrics.get("improvement_percent", {})
 
-                metric_cols = st.columns(4)
+                # Model comparison table
+                comparison_df = pd.DataFrame([
+                    {
+                        "Model": "ARIMA",
+                        "MAE": arima_metrics.get("mae"),
+                        "RMSE": arima_metrics.get("rmse"),
+                        "Directional accuracy": (
+                            f"{arima_metrics.get('directional_accuracy', 0):.2f}%"
+                        ),
+                    },
+                    {
+                        "Model": "Naive baseline",
+                        "MAE": baseline_metrics.get("mae"),
+                        "RMSE": baseline_metrics.get("rmse"),
+                        "Directional accuracy": (
+                            f"{baseline_metrics.get('directional_accuracy'):.2f}%"
+                            if baseline_metrics.get("directional_accuracy") is not None
+                            else "N/A"
+                        ),
+                    },
+                ])
+
+                st.dataframe(
+                    comparison_df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                # Improvement metrics
+                mae_improvement = improvements.get("mae")
+                rmse_improvement = improvements.get("rmse")
+
+                metric_cols = st.columns(3)
 
                 metric_cols[0].metric(
-                    "MAE",
-                    f"{eval_metrics.get('mae', 0):,.2f}",
-                    help="Mean absolute error, in price units.",
+                    "MAE improvement",
+                    (
+                        f"{mae_improvement:+.2f}%"
+                        if mae_improvement is not None
+                        else "N/A"
+                    ),
+                    help="Positive means ARIMA has lower MAE than the baseline.",
                 )
 
                 metric_cols[1].metric(
-                    "RMSE",
-                    f"{eval_metrics.get('rmse', 0):,.2f}",
-                    help=(
-                        "Root mean squared error; larger errors "
-                        "receive greater weight."
+                    "RMSE improvement",
+                    (
+                        f"{rmse_improvement:+.2f}%"
+                        if rmse_improvement is not None
+                        else "N/A"
                     ),
+                    help="Positive means ARIMA has lower RMSE than the baseline.",
                 )
 
                 metric_cols[2].metric(
-                    "Directional accuracy",
-                    f"{eval_metrics.get('directional_accuracy', 0):.1f}%",
-                )
-
-                metric_cols[3].metric(
                     "Evaluated samples",
                     str(evaluation_result.get("evaluated_samples", 0)),
                 )
 
+                # Automatic model comparison verdict
+                st.markdown("#### Model Evaluation Verdict")
+
+                if (
+                    mae_improvement is None
+                    or rmse_improvement is None
+                ):
+                    st.info(
+                        "Unable to determine the overall verdict because "
+                        "one or more error improvements could not be calculated."
+                    )
+
+                elif (
+                    abs(mae_improvement) < 0.000001
+                    and abs(rmse_improvement) < 0.000001
+                ):
+                    st.info(
+                        "Both models have effectively equal MAE and RMSE "
+                        "on this evaluation set."
+                    )
+
+                elif (
+                    mae_improvement > 0
+                    and rmse_improvement > 0
+                ):
+                    st.success(
+                        "ARIMA outperformed the naive baseline on both "
+                        "MAE and RMSE for this evaluation period."
+                    )
+
+                elif (
+                    mae_improvement < 0
+                    and rmse_improvement < 0
+                ):
+                    st.warning(
+                        "The naive baseline performed better than ARIMA "
+                        "on both MAE and RMSE for this evaluation period."
+                    )
+
+                else:
+                    st.info(
+                        "Mixed results: ARIMA performed better on one "
+                        "error metric and worse on the other."
+                    )
+
+                st.caption(
+                    "Verdict is based on historical forecast errors only. "
+                    "It does not establish future accuracy or trading profitability."
+                )
+
                 st.caption(
                     f"Symbol: {evaluation_result.get('symbol', 'N/A')} · "
-                    f"Method: "
-                    f"{evaluation_result.get('evaluation_method', 'N/A')} · "
+                    f"Method: {evaluation_result.get('evaluation_method', 'N/A')} · "
                     f"Training cutoff: "
                     f"{evaluation_result.get('training_cutoff_date', 'N/A')}"
                 )
@@ -2136,7 +2550,8 @@ def app_workspace():
                     )
                     evaluation_df = evaluation_df.sort_values("date")
 
-                    st.markdown("#### Actual vs predicted prices")
+                    # Actual vs ARIMA vs naive baseline chart
+                    st.markdown("#### Actual vs. Predicted Prices")
 
                     evaluation_fig = go.Figure()
 
@@ -2159,14 +2574,20 @@ def app_workspace():
                         )
                     )
 
-                    evaluation_fig.update_layout(
-                        height=420,
-                        template=(
-                            "plotly_dark"
-                            if st.session_state.get("ql_theme", "Dark")
-                            == "Dark"
-                            else "plotly_white"
-                        ),
+                    if "baseline_price" in evaluation_df.columns:
+                        evaluation_fig.add_trace(
+                            go.Scatter(
+                                x=evaluation_df["date"],
+                                y=evaluation_df["baseline_price"],
+                                mode="lines+markers",
+                                name="Naive baseline",
+                                line=dict(dash="dot"),
+                            )
+                        )
+
+                    style_fig(
+                        evaluation_fig,
+                        420,
                         margin=dict(l=10, r=10, t=25, b=10),
                         xaxis_title="Evaluation date",
                         yaxis_title="Closing price",
@@ -2185,27 +2606,87 @@ def app_workspace():
                         use_container_width=True,
                     )
 
-                    st.markdown("#### Prediction errors")
+                    # Compare absolute prediction errors
+                    st.markdown("#### Absolute Error Comparison")
 
-                    display_df = evaluation_df[
-                        [
+                    error_fig = go.Figure()
+
+                    error_fig.add_trace(
+                        go.Scatter(
+                            x=evaluation_df["date"],
+                            y=evaluation_df["absolute_error"],
+                            mode="lines+markers",
+                            name="ARIMA error",
+                        )
+                    )
+
+                    if "baseline_absolute_error" in evaluation_df.columns:
+                        error_fig.add_trace(
+                            go.Scatter(
+                                x=evaluation_df["date"],
+                                y=evaluation_df["baseline_absolute_error"],
+                                mode="lines+markers",
+                                name="Naive baseline error",
+                            )
+                        )
+
+                    style_fig(
+                        error_fig,
+                        360,
+                        margin=dict(l=10, r=10, t=25, b=10),
+                        xaxis_title="Evaluation date",
+                        yaxis_title="Absolute error (price units)",
+                        hovermode="x unified",
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="left",
+                            x=0,
+                        ),
+                    )
+
+                    st.plotly_chart(
+                        error_fig,
+                        use_container_width=True,
+                    )
+
+                    # Prediction errors and directions
+                    st.markdown("#### Prediction Errors and Directions")
+
+                    display_columns = [
+                        column
+                        for column in [
                             "date",
+                            "previous_close",
                             "actual_price",
                             "predicted_price",
+                            "baseline_price",
                             "absolute_error",
+                            "baseline_absolute_error",
+                            "actual_direction",
+                            "predicted_direction",
                         ]
-                    ].copy()
+                        if column in evaluation_df.columns
+                    ]
 
-                    display_df["date"] = (
-                        display_df["date"].dt.strftime("%Y-%m-%d")
+                    display_df = evaluation_df[display_columns].copy()
+
+                    display_df["date"] = display_df["date"].dt.strftime(
+                        "%Y-%m-%d"
                     )
 
                     display_df = display_df.rename(
                         columns={
                             "date": "Date",
+                            "previous_close": "Previous close",
                             "actual_price": "Actual price",
-                            "predicted_price": "Predicted price",
-                            "absolute_error": "Absolute error",
+                            "predicted_price": "ARIMA prediction",
+                            "baseline_price": "Naive prediction",
+                            "absolute_error": "ARIMA error",
+                            "baseline_absolute_error": "Baseline error",
+                            "actual_direction": "Actual direction",
+                            "predicted_direction": "Predicted direction",
                         }
                     )
 
@@ -2217,19 +2698,17 @@ def app_workspace():
 
                     st.download_button(
                         "Download evaluation results",
-                        data=display_df.to_csv(
-                            index=False
-                        ).encode("utf-8"),
-                        file_name="arima_evaluation.csv",
+                        data=display_df.to_csv(index=False).encode("utf-8"),
+                        file_name="arima_baseline_evaluation.csv",
                         mime="text/csv",
-                        key="download_arima_evaluation",
+                        key="download_arima_baseline_evaluation",
                     )
 
                 st.warning(
                     evaluation_result.get(
                         "disclaimer",
-                        "Historical performance does not guarantee "
-                        "future forecasting accuracy.",
+                        "Historical forecasting performance does not guarantee "
+                        "future accuracy. This evaluation is not investment advice.",
                     )
                 )
 

@@ -16,6 +16,8 @@ from backend.app.services.signals import (
     generate_sentiment_signals,
     generate_ai_hybrid_signals,
     generate_lstm_hybrid_signals,
+    generate_custom_signals,
+    generate_full_hybrid_signals,
 )
 from backend.app.services.news_service import (
     fetch_news,
@@ -67,17 +69,25 @@ def to_json_safe(value):
 router = APIRouter(prefix="/backtests", tags=["Backtests"])
 
 
+
+
 class BacktestRequest(BaseModel):
     symbol: str = "RELIANCE.NS"
     start_date: date = date(2026, 1, 1)
     end_date: date = date(2026, 9, 5)
     initial_capital: float = Field(default=100000, gt=0)
+
     strategy: Literal[
         "technical",
         "sentiment",
         "hybrid_arima",
         "hybrid_lstm",
+        "hybrid_full",
+        "custom",
     ] = "technical"
+
+    news_articles: list[dict] = Field(default_factory=list)
+    custom_config: dict = Field(default_factory=dict)
 
 
 def prepare_market_data(request: BacktestRequest) -> pd.DataFrame:
@@ -95,8 +105,39 @@ def prepare_market_data(request: BacktestRequest) -> pd.DataFrame:
 
     prices = prices.sort_index()
 
-    news_items = fetch_news(request.symbol, count=20)
-    news_df = news_to_dataframe(news_items)
+    
+    if request.news_articles:
+        news_df = pd.DataFrame(request.news_articles)
+
+        required_columns = {"news_date", "headline"}
+        if not required_columns.issubset(news_df.columns):
+            raise HTTPException(
+                status_code=422,
+                detail="Each article requires news_date and headline.",
+            )
+
+        news_df["news_date"] = pd.to_datetime(
+            news_df["news_date"],
+            errors="coerce",
+        )
+        news_df["headline"] = (
+            news_df["headline"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+        news_df = news_df.dropna(subset=["news_date"])
+        news_df = news_df[news_df["headline"] != ""]
+
+        news_df = news_df[
+            (news_df["news_date"].dt.date >= request.start_date)
+            & (news_df["news_date"].dt.date <= request.end_date)
+        ]
+    else:
+        news_items = fetch_news(request.symbol, count=20)
+        news_df = news_to_dataframe(news_items)
+
 
     if not news_df.empty:
         news_df = analyze_news_dataframe(news_df)
@@ -183,6 +224,7 @@ def run_backtest_api(request: BacktestRequest):
                 detail="Not enough market data to calculate indicators.",
             )
 
+
         if request.strategy == "technical":
             signals = generate_technical_signals(data)
 
@@ -200,7 +242,7 @@ def run_backtest_api(request: BacktestRequest):
 
             signals = generate_ai_hybrid_signals(data)
 
-        else:
+        elif request.strategy == "hybrid_lstm":
             data = generate_rolling_forecasts(data, "lstm")
 
             if data.empty:
@@ -210,6 +252,47 @@ def run_backtest_api(request: BacktestRequest):
                 )
 
             signals = generate_lstm_hybrid_signals(data)
+
+        elif request.strategy == "custom":
+            try:
+                signals = generate_custom_signals(
+                    data,
+                    request.custom_config,
+                )
+            except (ValueError, KeyError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        elif request.strategy == "hybrid_full":
+            # Generate both forecasts from the same original market data.
+            arima_data = generate_rolling_forecasts(data, "arima")
+            lstm_data = generate_rolling_forecasts(data, "lstm")
+
+            if arima_data.empty or lstm_data.empty:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "Not enough historical data to generate both "
+                        "ARIMA and LSTM forecasts."
+                    ),
+                )
+
+            # Align by date so each signal uses both model forecasts
+            # for the same trading row.
+            data = (
+                data.join(arima_data[["forecast_price"]], how="inner")
+                .join(
+                    lstm_data[["lstm_forecast_price"]],
+                    how="inner",
+                )
+            )
+
+            if data.empty:
+                raise HTTPException(
+                    status_code=422,
+                    detail="No overlapping ARIMA and LSTM forecast dates.",
+                )
+
+            signals = generate_full_hybrid_signals(data)
 
         result, trades = run_backtest(
             signals,
@@ -246,6 +329,13 @@ def run_backtest_api(request: BacktestRequest):
                     if "profit_loss" in trade
                     else None
                 ),
+                "lstm_direction": trade.get("lstm_direction"),
+                "technical_score": trade.get("technical_score"),
+                "sentiment_score": trade.get("sentiment_score"),
+                "arima_expected_return": trade.get("arima_expected_return"),
+                "lstm_expected_return": trade.get("lstm_expected_return"),
+                "forecast_expected_return": trade.get("forecast_expected_return"),
+                "ai_hybrid_score": trade.get("ai_hybrid_score"),
                 "reason": trade.get("reason"),
                 "signal_reason": trade.get("signal_reason"),
                 "signal_explanation": trade.get("signal_explanation"),
@@ -278,3 +368,5 @@ def run_backtest_api(request: BacktestRequest):
             status_code=500,
             detail=f"Backtest failed: {str(exc)}",
         )
+
+
